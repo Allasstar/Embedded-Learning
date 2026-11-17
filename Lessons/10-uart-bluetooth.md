@@ -228,7 +228,7 @@ static void HandleLine(char *text)
 }
 ```
 
-`led` switches the blue on-board LED (LD6, PD15). Remove the LED blinker from `app.c` if it clashes. More commands are a challenge (below).
+`led` switches the blue on-board LED (LD6, PD15). Remove the LED blinker from `app.c` if it clashes.
 
 ### Step 5: Notice the transmit cost
 At 9600 baud, `Console_Printf` of 50 characters **blocks for ~52 ms**. Measure it:
@@ -239,7 +239,7 @@ Console_Printf("0123456789012345678901234567890123456789012345678\r\n");
 LOG("took %lu ms\n", HAL_GetTick() - t);
 ```
 
-During that time everything else in `App_Update()` freezes (the LED blinker, and any other module you add). Challenge 1 fixes it.
+During that time everything else in `App_Update()` freezes (the LED blinker, and any other module you add). The fix is a TX ring buffer drained by `HAL_UART_Transmit_IT`: the same idea as RX, in reverse. For short replies like ours, blocking is acceptable.
 
 ## Check it works
 - [ ] Greeting appears after reset
@@ -255,9 +255,40 @@ During that time everything else in `App_Update()` freezes (the LED blinker, and
 | Board receives once then never again | `HAL_UART_Receive_IT` not re-armed in the callback, or error callback missing |
 | Can't find module on iPhone | it's classic Bluetooth: use Android or a PC |
 
-## Challenges
-1. **Non-blocking transmit**: add a TX ring buffer. `Console_Printf` only copies into it. When the UART is idle, start `HAL_UART_Transmit_IT` with the bytes available; in `HAL_UART_TxCpltCallback` send the next chunk.
-2. Echo typed characters back and support **Backspace** (`0x08` / `0x7F`).
-3. Stream sensor values as CSV (`t,pot,dist\r\n`) every 100 ms and plot them on the PC (e.g. *SerialPlot*, or save and open in Excel).
-4. Change the module's name/baud with **AT commands** (HC-05: hold its button while powering up to enter AT mode at 38400 baud).
-5. Add commands for parts from other lessons once you've done them in their own branches: `servo <0-180>` (lesson 06), `dist` (lesson 07), `pot` (lesson 08), `play` (lesson 05).
+## Challenge: Morse telegraph
+Turn the board into a two-way Morse station.
+
+- **Phone → board:** type `morse hello world` and LD6 blinks it out.
+- **Board → phone:** tap Morse on the blue button and the decoded letters appear on your phone.
+
+The rule: **the console must keep working the whole time**. `status` answers in the middle of a blinking message. So no `HAL_Delay` anywhere: both directions are state machines stepped from `App_Update()`.
+
+**Why this challenge:** three things (console, sender, decoder) run "at the same time" on one CPU without an RTOS. This is cooperative multitasking, and it's what lesson 20 (FreeRTOS) replaces. You'll appreciate it much more after building it by hand.
+
+### Timing
+One **unit** = 150 ms (slow it down to 250 ms while learning to tap).
+
+| Element | Length |
+|---|---|
+| dot | 1 unit on |
+| dash | 3 units on |
+| gap inside a letter | 1 unit off |
+| gap between letters | 3 units off |
+| gap between words | 7 units off |
+
+### Hints
+- **One table, both directions:** `static const char *const morseCodes[26] = { ".-", "-...", "-.-.", ... };`, indexed with `letter - 'a'`. Decoding = find the index whose string equals what was tapped.
+- **The argument problem:** `strtok` splits `morse hello world` at spaces, so `argument` is only `hello`. `strtok(NULL, "")` returns *the rest of the line* instead. Then **copy** it into the sender's own buffer: `line` is overwritten by the next command.
+- **Sender state:** where you are in the message, where you are in the current letter's code, and the tick when the current on/off step ends. Each update: if that tick hasn't come yet, return immediately. That early return is what keeps everything else running.
+- **Decoder:** read the raw pin (`HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin)`, pressed = 1), not `BlueButton_WasPressed()`: you need *how long* it was held, not just that it was pressed. Remember the tick at every edge:
+  - released after < 2 units → dot, otherwise dash
+  - released for > 3 units → letter finished: look it up, `Console_Printf("%c", letter)`, or `?` if unknown
+  - released for > 7 units → print a space (once)
+  - ignore presses shorter than ~20 ms: that's contact bounce, not a dot
+- The decoder thresholds sit **between** the ideal lengths (2 is between 1 and 3) because humans don't tap perfectly.
+
+### Check it works
+- [ ] `morse sos` blinks `... --- ...` with the right gaps
+- [ ] `status` answers while a long message is blinking
+- [ ] Tapping `... --- ...` on the button prints `sos`
+- [ ] With a friend: they type a word on the phone, you read it off the LED; you tap a reply, they read it on the phone
