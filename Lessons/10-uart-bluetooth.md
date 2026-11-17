@@ -194,6 +194,8 @@ void Console_Update(void)
 
 Some terminals send `\r`, some `\n`, some both. This handles all three because empty lines are ignored.
 
+A line of only spaces is not empty, but `strtok` finds no token in it and returns `NULL`, so `HandleLine` must check `command` before using it.
+
 ### Step 4: Commands
 
 ```c
@@ -201,6 +203,9 @@ static void HandleLine(char *text)
 {
   char *command = strtok(text, " ");
   char *argument = strtok(NULL, " ");
+
+  if (!command)
+    return;
 
   if (strcmp(command, "help") == 0)
   {
