@@ -3,6 +3,7 @@
 #include "log.h"
 #include "main.h"
 #include "timer.h"
+#include "lcd.h"
 
 extern I2C_HandleTypeDef hi2c3;
 
@@ -25,6 +26,9 @@ void App_Start(void)
             LOG("found 0x%02X\n", address);
         }
     }
+
+    Lcd_Init();
+    Lcd_Print("Hello, world!");
 }
 
 void App_Update(void)
