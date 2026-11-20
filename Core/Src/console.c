@@ -1,5 +1,6 @@
 #include "console.h"
 #include "main.h"
+#include "morse.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -86,7 +87,8 @@ void Console_Update(void)
 static void HandleLine(char *text)
 {
     char *command = strtok(text, " ");
-    char *argument = strtok(NULL, " ");
+    // "" as delimiter returns the rest of the line, so "morse hello world" keeps both words.
+    char *rest = strtok(NULL, "");
 
     // A line of only spaces leaves strtok with no token.
     if (!command)
@@ -94,21 +96,37 @@ static void HandleLine(char *text)
 
     if (strcmp(command, "help") == 0)
     {
-        Console_Printf("help, status, led on|off\r\n");
+        Console_Printf("help, status, led on|off, morse <text>\r\n");
     }
     else if (strcmp(command, "status") == 0)
     {
-        Console_Printf("uptime %lu ms\r\n", HAL_GetTick());
+        Console_Printf("uptime %lu ms, morse %s\r\n", HAL_GetTick(),
+                       Morse_IsSending() ? "sending" : "idle");
     }
-    else if (strcmp(command, "led") == 0 && argument && strcmp(argument, "on") == 0)
+    else if (strcmp(command, "morse") == 0 && rest)
     {
-        HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, GPIO_PIN_SET);
+        // Morse_Send copies the text: line is overwritten by the next command.
+        Morse_Send(rest);
         Console_Printf("ok\r\n");
     }
-    else if (strcmp(command, "led") == 0 && argument && strcmp(argument, "off") == 0)
+    else if (strcmp(command, "led") == 0 && rest)
     {
-        HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, GPIO_PIN_RESET);
-        Console_Printf("ok\r\n");
+        // Tokenized only here: splitting rest earlier would cut the morse text at its first space.
+        char *argument = strtok(rest, " ");
+        if (argument && strcmp(argument, "on") == 0)
+        {
+            HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, GPIO_PIN_SET);
+            Console_Printf("ok\r\n");
+        }
+        else if (argument && strcmp(argument, "off") == 0)
+        {
+            HAL_GPIO_WritePin(LD6_GPIO_Port, LD6_Pin, GPIO_PIN_RESET);
+            Console_Printf("ok\r\n");
+        }
+        else
+        {
+            Console_Printf("usage: led on|off\r\n");
+        }
     }
     else
     {
