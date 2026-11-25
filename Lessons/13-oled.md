@@ -31,7 +31,13 @@ Every I2C write to the SSD1306 starts with a **control byte**: `0x00` = the foll
 | SCL | PB6 |
 | SDA | PB9 |
 
-Scan I2C1 by calling this from `App_Start()` (`#include "log.h"`): expect **0x3C**.
+Scan I2C1 by calling this from `App_Start()`: expect **0x3C**. `hi2c1` is defined in `main.c` but not declared in `main.h`, so `app.c` needs the `extern` line to see it.
+
+```c
+#include "log.h"
+
+extern I2C_HandleTypeDef hi2c1;
+```
 
 ```c
 for (uint16_t address = 1; address < 128; address++)
