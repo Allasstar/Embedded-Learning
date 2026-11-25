@@ -180,7 +180,7 @@ Test: a frame around the screen edge, and a filled square in the middle.
 ### Step 3: Font
 A font is a table of bitmaps. The common **5×7** font stores each character as 5 bytes, one per column, bit 0 at the top: the same layout as the display, which is why it's so popular.
 
-1. Get `glcdfont.c` from the *Adafruit-GFX-Library* GitHub repository (BSD license). It holds 256 characters × 5 bytes.
+1. Get `src/glcdfont.c` from the *Adafruit-GFX-Library* GitHub repository (BSD license). It holds 256 characters × 5 bytes. Keep the license text from the repo's `license.txt` as a comment at the top of your file: the BSD license requires it.
 2. Save it as `Core/Src/font5x7.c`. Remove the `#include`s and `PROGMEM`, rename the array to `font5x7`, make it `const uint8_t font5x7[]`.
 3. Add it to `CMakeLists.txt` and declare `extern const uint8_t font5x7[];` in `oled.c`.
 
