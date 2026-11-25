@@ -42,9 +42,23 @@ for (uint16_t address = 1; address < 128; address++)
 ```
 
 ## CubeMX setup
-**I2C1**: change Speed Mode to **Fast Mode**, 400000 Hz. Generate.
+I2C1 is already enabled on master: the Discovery board defaults put it on **PB6 (SCL) / PB9 (SDA)** for the on-board audio chip (CS43L22), at 100 kHz Standard Mode. Lesson 12 used **I2C3 (PA8/PC9)** instead, because the 5 V LCD needed its own bus. That config lives only in the lesson 12 branch. The OLED runs on 3.3 V, so it shares I2C1.
 
-At 100 kHz a full frame takes ~93 ms; at 400 kHz ~25 ms. (The on-board audio chip is rated for 100 kHz, but it ignores the bus while held in reset, which is how this project leaves it.)
+Run the scan before changing anything. It works at 100 kHz too, so you confirm the wiring first.
+
+**Connectivity → I2C1 → Parameter Settings**:
+
+| Setting | Value | Why |
+|---|---|---|
+| I2C Speed Mode | **Fast Mode** | A full frame is 1024 bytes: ~93 ms at 100 kHz, too slow for smooth animation |
+| I2C Clock Speed | **400000** | Fast Mode maximum, supported by the SSD1306: ~25 ms per frame |
+| Fast Mode Duty Cycle | **Tlow/Thigh = 2** (default) | 16/9 only matters for exact timing on odd clock setups; 42 MHz APB1 reaches 400 kHz fine |
+
+Leave the PB6/PB9 GPIO pull at its default **Pull-up**. The real pull-ups are the resistors on the OLED module: the internal ~40 kΩ ones are too weak to make clean 400 kHz edges on their own, but in parallel they do no harm.
+
+Generate. Check `hi2c1.Init.ClockSpeed = 400000` in `main.c`.
+
+(The on-board audio chip is rated for 100 kHz, but it ignores the bus while held in reset, which is how this project leaves it.)
 
 ## Steps
 
