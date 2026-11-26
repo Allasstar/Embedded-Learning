@@ -8,6 +8,7 @@ extern const uint8_t font5x7[];
 #define OLED_ADDR (0x3C << 1)
 
 static uint8_t frame[OLED_WIDTH * OLED_HEIGHT / 8];
+static volatile uint8_t busy;
 
 static void Commands(const uint8_t *commands, uint16_t count)
 {
@@ -16,6 +17,7 @@ static void Commands(const uint8_t *commands, uint16_t count)
 
 void Oled_Init(void)
 {
+    // clang-format off
     static const uint8_t init[] =
     {
         0xAE,       // display off
@@ -35,6 +37,7 @@ void Oled_Init(void)
         0xA6,       // normal (not inverted)
         0xAF,       // display on
     };
+    // clang-format on
 
     // The panel needs time after power-up before it accepts commands.
     HAL_Delay(100);
@@ -50,9 +53,34 @@ void Oled_Clear(void)
 
 void Oled_Update(void)
 {
+    if (busy)
+        return;
+
     static const uint8_t window[] = {0x21, 0, OLED_WIDTH - 1, 0x22, 0, 7};
     Commands(window, sizeof(window));
-    HAL_I2C_Mem_Write(&hi2c1, OLED_ADDR, 0x40, I2C_MEMADD_SIZE_8BIT, frame, sizeof(frame), 100);
+
+    // Set before starting: the completion interrupt could fire before the next line runs.
+    busy = 1;
+    // A failed start fires no callback, so nothing else would ever clear the flag.
+    if (HAL_I2C_Mem_Write_DMA(&hi2c1, OLED_ADDR, 0x40, I2C_MEMADD_SIZE_8BIT, frame, sizeof(frame)) != HAL_OK)
+        busy = 0;
+}
+
+uint8_t Oled_IsBusy(void)
+{
+    return busy;
+}
+
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    if (hi2c->Instance == I2C1)
+        busy = 0;
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+    if (hi2c->Instance == I2C1)
+        busy = 0;
 }
 
 void Oled_DrawPixel(int32_t x, int32_t y, uint8_t on)

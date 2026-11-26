@@ -28,6 +28,11 @@ static void DrawFrame(void);
 void App_Start(void)
 {
     LOG("App started\n");
+
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
     Oled_Init();
 }
 
@@ -53,7 +58,8 @@ void App_Update(void)
         WriteLedPin(ledIndex, GPIO_PIN_RESET);
     }
 
-    if (Timer_Fired(&frameTimer))
+    // Busy check first: while busy, the timer isn't consumed, so the frame is drawn as soon as the transfer ends.
+    if (!Oled_IsBusy() && Timer_Fired(&frameTimer))
     {
         MoveBall();
         DrawFrame();
@@ -87,10 +93,10 @@ static void DrawFrame(void)
     Oled_FillRect(0, 12, (now % 5000) * OLED_WIDTH / 5000, 8, 1);
     Oled_FillRect(ballX, ballY, BALL_SIZE, BALL_SIZE, 1);
 
-    uint32_t updateStart = HAL_GetTick();
+    uint32_t updateStart = DWT->CYCCNT;
     Oled_Update();
-    uint32_t updateMs = HAL_GetTick() - updateStart;
+    uint32_t updateUs = (DWT->CYCCNT - updateStart) / (SystemCoreClock / 1000000);
 
     if (Timer_Fired(&measureTimer))
-        LOG("Oled_Update: %lu ms\n", updateMs);
+        LOG("Oled_Update: %lu us\n", updateUs);
 }
